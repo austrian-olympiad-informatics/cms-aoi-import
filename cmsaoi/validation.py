@@ -14,7 +14,9 @@ from cmsaoi.const import (
     CONF_CODENAME,
     CONF_CPP_CONFIG,
     CONF_DECIMAL_PLACES,
+    CONF_EDITOR_TEMPLATES,
     CONF_FEEDBACK_LEVEL,
+    CONF_FILE,
     CONF_GCC_ARGS,
     CONF_GEN_NUMBER,
     CONF_GRADER,
@@ -25,7 +27,10 @@ from cmsaoi.const import (
     CONF_LATEXMK_ARGS,
     CONF_LONG_NAME,
     CONF_MANAGER,
+    CONF_MAX_SCORE,
+    CONF_MEMES,
     CONF_MEMORY_LIMIT,
+    CONF_MIN_SCORE,
     CONF_MODE,
     CONF_NAME,
     CONF_NUM_PROCESSES,
@@ -36,8 +41,11 @@ from cmsaoi.const import (
     CONF_SAMPLE_SOLUTION,
     CONF_SCORE_OPTIONS,
     CONF_STATEMENTS,
+    CONF_STDIN_FILENAME,
+    CONF_STDOUT_FILENAME,
     CONF_SUBTASKS,
     CONF_TASK_TYPE,
+    CONF_TEST_GRADER,
     CONF_TEST_SUBMISSIONS,
     CONF_TESTCASE_CHECKER,
     CONF_TESTCASES,
@@ -46,6 +54,7 @@ from cmsaoi.const import (
     CONF_TYPE,
     CONF_USER_IO,
     CONF_USES,
+    CONF_WEIGHT,
     FEEDBACK_LEVELS,
     SCORE_MODES,
     SCORE_TYPES,
@@ -184,6 +193,16 @@ def copy_public_to_testcases(config):
     return config
 
 
+def simple_batch(value):
+    if isinstance(value, str) and value == "BATCH":
+        return {
+            CONF_TYPE: "BATCH",
+            CONF_STDIN_FILENAME: "",
+            CONF_STDOUT_FILENAME: "",
+        }
+    raise vol.Invalid("Not simple batch")
+
+
 CONFIG_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): string,
@@ -210,7 +229,12 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(CONF_SAMPLE_SOLUTION): validate_file,
         vol.Optional(CONF_GRADER, default=[]): [validate_file],
         vol.Required(CONF_TASK_TYPE): vol.Any(
-            "BATCH",
+            simple_batch,
+            {
+                vol.Required(CONF_TYPE): "BATCH",
+                vol.Optional(CONF_STDIN_FILENAME, default=""): str,
+                vol.Optional(CONF_STDOUT_FILENAME, default=""): str,
+            },
             "OUTPUT_ONLY",
             {
                 vol.Required(CONF_TYPE): "COMMUNICATION",
@@ -272,5 +296,15 @@ CONFIG_SCHEMA = vol.Schema(
             vol.Optional(CONF_INITIAL, default=2): vol.Coerce(int),
             vol.Optional(CONF_GEN_NUMBER, default=2): vol.Coerce(int),
         },
+        vol.Optional(CONF_MEMES): [
+            {
+                vol.Required(CONF_FILE): validate_file,
+                vol.Optional(CONF_MIN_SCORE, default=0.0): vol.Coerce(float),
+                vol.Optional(CONF_MAX_SCORE, default=100.0): vol.Coerce(float),
+                vol.Optional(CONF_WEIGHT, default=1.0): vol.Coerce(float),
+            }
+        ],
+        vol.Optional(CONF_EDITOR_TEMPLATES, default=[]): [validate_file],
+        vol.Optional(CONF_TEST_GRADER, default=[]): [validate_file],
     }
 )

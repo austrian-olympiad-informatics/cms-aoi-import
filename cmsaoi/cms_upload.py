@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union
+from uuid import uuid4
 
 import cms.conf
 import cmscommon.constants as cmsconst
@@ -24,6 +25,9 @@ from cms.db import (
     Testcase,
     User,
     test_db_connection,
+    LanguageTemplate,
+    TestManager,
+    Meme,
 )
 from cms.db.filecacher import FileCacher
 from cms.grading.languagemanager import LANGUAGES
@@ -35,14 +39,20 @@ from cmsaoi.const import (
     CONF_CHECKER,
     CONF_CODENAME,
     CONF_DECIMAL_PLACES,
+    CONF_EDITOR_TEMPLATES,
     CONF_FEEDBACK_LEVEL,
+    CONF_FILE,
     CONF_GEN_NUMBER,
     CONF_GRADER,
     CONF_INITIAL,
     CONF_INPUT,
     CONF_LONG_NAME,
     CONF_MANAGER,
+    CONF_MAX_NUMBER,
+    CONF_MAX_SCORE,
+    CONF_MEMES,
     CONF_MEMORY_LIMIT,
+    CONF_MIN_SCORE,
     CONF_MODE,
     CONF_NAME,
     CONF_NUM_PROCESSES,
@@ -52,14 +62,18 @@ from cmsaoi.const import (
     CONF_PUBLIC,
     CONF_SCORE_OPTIONS,
     CONF_STATEMENTS,
+    CONF_STDIN_FILENAME,
+    CONF_STDOUT_FILENAME,
     CONF_SUBTASKS,
     CONF_TASK_TYPE,
+    CONF_TEST_GRADER,
     CONF_TEST_SUBMISSIONS,
     CONF_TESTCASES,
     CONF_TIME_LIMIT,
     CONF_TOKENS,
     CONF_TYPE,
     CONF_USER_IO,
+    CONF_WEIGHT,
     FEEDBACK_LEVEL_FULL,
     FEEDBACK_LEVEL_RESTRICTED,
     SCORE_MODE_MAX,
@@ -157,6 +171,7 @@ def run_test_submissions(config, put_file):
             lang = filename_to_langname(task.contest, path)
             assert lang is not None
             submission = Submission(
+                uuid=str(uuid4()),
                 timestamp=datetime.utcnow(),
                 language=lang,
                 participation=participation,
@@ -335,6 +350,19 @@ def construct_task(config, all_rules, put_file):
         TOKEN_MODE_INFINITE: "infinite",
     }[tokens[CONF_MODE]]
 
+    if CONF_MEMES in config:
+        memes = args["memes"] = []
+        for conf in config[CONF_MEMES]:
+            fname = Path(conf[CONF_FILE]).name
+            digest = put_file(grader, f"Meme {fname} for task {name}")
+            memes.append(Meme(
+                filename=fname, 
+                digest=digest,
+                min_score=conf[CONF_MIN_SCORE],
+                max_score=conf[CONF_MAX_SCORE],
+                factor=conf[CONF_WEIGHT],
+            ))
+
     task = Task(
         name=name,
         title=long_name,
@@ -355,6 +383,8 @@ def construct_task(config, all_rules, put_file):
     # ================ DATASET ================
     # Managers = additional files attached to the dataset (checker, grader files)
     managers = []
+    test_managers = []
+    language_templates = []
 
     # ================ GRADER ================
     # How the submission is compiled (alone or with additional grader files)
@@ -366,7 +396,10 @@ def construct_task(config, all_rules, put_file):
         digest = put_file(grader, f"Grader for task {name} and ext {suffix}")
         fname = grader_path.name
         if grader_path.suffix == ".cpp":
-            if config[CONF_TASK_TYPE] == "BATCH":
+            if (
+                isinstance(config[CONF_TASK_TYPE], dict)
+                and config[CONF_TASK_TYPE].get(CONF_TYPE) == "BATCH"
+            ):
                 fname = "grader.cpp"
             elif (
                 isinstance(config[CONF_TASK_TYPE], dict)
@@ -448,19 +481,7 @@ def construct_task(config, all_rules, put_file):
     _LOGGER.info("")
 
     # ================ TASK TYPE ================
-    if config[CONF_TASK_TYPE] == TASK_TYPE_BATCH:
-        # Batch task type, user program is called and a checker (or whitespace diff) is perfomed on output
-        # to determine outcome
-        task_type_params = [
-            # compiled alone (`alone`) or with grader (`grader`)
-            compilation_param,
-            # I/O, empty for stdin/stdout. Otherwise filenames for input/output files
-            ["", ""],
-            # Evaluated by white-diff (`diff`) or with checker (`comparator`)
-            evaluation_param,
-        ]
-        task_type = "Batch"
-    elif config[CONF_TASK_TYPE] == TASK_TYPE_OUTPUT_ONLY:
+    if config[CONF_TASK_TYPE] == TASK_TYPE_OUTPUT_ONLY:
         task_type_params = [
             # Evaluated by white-diff (`diff`) or with checker (`comparator`)
             evaluation_param
@@ -468,7 +489,19 @@ def construct_task(config, all_rules, put_file):
         task_type = "OutputOnly"
     elif isinstance(config[CONF_TASK_TYPE], dict):
         conf = config[CONF_TASK_TYPE]
-        if conf.get(CONF_TYPE) == TASK_TYPE_COMMUNICATION:
+        if conf.get(CONF_TYPE) == TASK_TYPE_BATCH:
+            # Batch task type, user program is called and a checker (or whitespace diff) is perfomed on output
+            # to determine outcome
+            task_type_params = [
+                # compiled alone (`alone`) or with grader (`grader`)
+                compilation_param,
+                # I/O, empty for stdin/stdout. Otherwise filenames for input/output files
+                [conf[CONF_STDIN_FILENAME], conf[CONF_STDOUT_FILENAME]],
+                # Evaluated by white-diff (`diff`) or with checker (`comparator`)
+                evaluation_param,
+            ]
+            task_type = "Batch"
+        elif conf.get(CONF_TYPE) == TASK_TYPE_COMMUNICATION:
             task_type_params = [
                 # Number of user processes spawned
                 conf[CONF_NUM_PROCESSES],
@@ -497,6 +530,17 @@ def construct_task(config, all_rules, put_file):
             raise NotImplementedError
     else:
         raise NotImplementedError
+
+    for path in config[CONF_TEST_GRADER]:
+        fname = Path(path).name
+        digest = put_file(path, f"Test grader {fname} for task {name}")
+        test_managers.append(TestManager(filename=fname, digest=digest))
+        _LOGGER.info("  - Test Grader: '%s' (as %s)", path, fname)
+    for path in config[CONF_EDITOR_TEMPLATES]:
+        fname = Path(path).name
+        digest = put_file(path, f"Editor template {fname} for task {name}")
+        language_templates.append(LanguageTemplate(filename=fname, digest=digest))
+        _LOGGER.info("  - Editor template: '%s' (as %s)", path, fname)
     _LOGGER.info("  - Task Type: %s", task_type)
 
     # ================ LIMITS ================
@@ -525,6 +569,8 @@ def construct_task(config, all_rules, put_file):
         score_type=cms_score_type,
         task_type_parameters=task_type_params,
         score_type_parameters=score_type_params,
+        language_templates={x.filename: x for x in language_templates},
+        test_managers={x.filename: x for x in test_managers},
     )
     # Set dataset as the active one
     task.active_dataset = dataset
