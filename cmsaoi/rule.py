@@ -363,6 +363,28 @@ class ZipNinja(NinjaRule):
         )
 
 
+@register_rule("!mdcompile")
+class MDCompileNinja(NinjaRule):
+    RULE_NAME = "mdcompile"
+
+    def __init__(self, arg: str) -> None:
+        self._arg = arg
+        self._output = default_output(
+            arg, prefix="mdcompile_", suffix=".html", use_path=False
+        )
+
+    @classmethod
+    def write_rule(cls, writer: Writer) -> None:
+        cmd = "pandoc --embed-resources --highlight-style=pygments -V lang=de --html-q-tags --resource-path=$$(dirname $in) $in -o $out"
+        desc = "!mdcompile $in"
+        writer.rule(cls.RULE_NAME, cmd, description=desc)
+
+    def write_build(self, writer: Writer) -> None:
+        outputs = [str(self.output)]
+        inputs = [self._arg]
+        writer.build(outputs, self.RULE_NAME, inputs)
+
+
 @register_rule("!gunzip")
 class GunzipNinja(NinjaRule):
     RULE_NAME = "gunzip"

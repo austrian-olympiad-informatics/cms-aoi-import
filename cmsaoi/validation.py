@@ -14,6 +14,7 @@ from cmsaoi.const import (
     CONF_CODENAME,
     CONF_CPP_CONFIG,
     CONF_DECIMAL_PLACES,
+    CONF_DEFAULT_INPUT,
     CONF_EDITOR_TEMPLATES,
     CONF_FEEDBACK_LEVEL,
     CONF_FILE,
@@ -41,6 +42,7 @@ from cmsaoi.const import (
     CONF_SAMPLE_SOLUTION,
     CONF_SCORE_OPTIONS,
     CONF_STATEMENTS,
+    CONF_STATEMENT_HTML,
     CONF_STDIN_FILENAME,
     CONF_STDOUT_FILENAME,
     CONF_SUBTASKS,
@@ -213,6 +215,8 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Required(CONF_STATEMENTS): {
             string: validate_file,
         },
+        vol.Optional(CONF_STATEMENT_HTML): validate_file,
+        vol.Optional(CONF_DEFAULT_INPUT): validate_file,
         vol.Optional(CONF_ATTACHMENTS, default={}): {
             string: validate_file,
         },

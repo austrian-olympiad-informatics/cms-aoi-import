@@ -39,6 +39,7 @@ from cmsaoi.const import (
     CONF_CHECKER,
     CONF_CODENAME,
     CONF_DECIMAL_PLACES,
+    CONF_DEFAULT_INPUT,
     CONF_EDITOR_TEMPLATES,
     CONF_FEEDBACK_LEVEL,
     CONF_FILE,
@@ -62,6 +63,7 @@ from cmsaoi.const import (
     CONF_PUBLIC,
     CONF_SCORE_OPTIONS,
     CONF_STATEMENTS,
+    CONF_STATEMENT_HTML,
     CONF_STDIN_FILENAME,
     CONF_STDOUT_FILENAME,
     CONF_SUBTASKS,
@@ -296,6 +298,21 @@ def construct_task(config, all_rules, put_file):
     if len(statements) == 1:
         args["primary_statements"] = [next(iter(statements.keys()))]
         _LOGGER.info("  - Primary statement: %s", args["primary_statements"][0])
+
+    if CONF_STATEMENT_HTML in config:
+        digest = put_file(config[CONF_STATEMENT_HTML], f"HTML statement for task {name}")
+        args["statement_html_digest"] = digest
+        _LOGGER.info(
+            "  - HTML statement: '%s'",
+            lookup_friendly_filename(all_rules, config[CONF_STATEMENT_HTML]),
+        )
+    if CONF_DEFAULT_INPUT in config:
+        digest = put_file(config[CONF_DEFAULT_INPUT], f"Default input for task {name}")
+        args["default_input_digest"] = digest
+        _LOGGER.info(
+            "  - Default input: '%s'",
+            lookup_friendly_filename(all_rules, config[CONF_DEFAULT_INPUT]),
+        )
 
     # ================ ATTACHMENTS ================
     attachments = {}
