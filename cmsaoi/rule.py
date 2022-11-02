@@ -375,7 +375,7 @@ class MDCompileNinja(NinjaRule):
 
     @classmethod
     def write_rule(cls, writer: Writer) -> None:
-        cmd = "pandoc --embed-resources --highlight-style=pygments -V lang=de --html-q-tags --resource-path=$$(dirname $in) $in -o $out"
+        cmd = "pandoc --katex --embed-resources --highlight-style=pygments -V lang=de --html-q-tags --resource-path=$$(dirname $in) $in -o $out"
         desc = "!mdcompile $in"
         writer.rule(cls.RULE_NAME, cmd, description=desc)
 
