@@ -205,6 +205,14 @@ def simple_batch(value):
     raise vol.Invalid("Not simple batch")
 
 
+def simple_output_only(value):
+    if isinstance(value, str) and value == "OUTPUT_ONLY":
+        return {
+            CONF_TYPE: "OUTPUT_ONLY",
+        }
+    raise vol.Invalid("Not simple output_only")
+
+
 CONFIG_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): string,
@@ -234,12 +242,15 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(CONF_GRADER, default=[]): [validate_file],
         vol.Required(CONF_TASK_TYPE): vol.Any(
             simple_batch,
+            simple_output_only,
             {
                 vol.Required(CONF_TYPE): "BATCH",
                 vol.Optional(CONF_STDIN_FILENAME, default=""): str,
                 vol.Optional(CONF_STDOUT_FILENAME, default=""): str,
             },
-            "OUTPUT_ONLY",
+            {
+                vol.Required(CONF_TYPE): "OUTPUT_ONLY",
+            },
             {
                 vol.Required(CONF_TYPE): "COMMUNICATION",
                 vol.Required(CONF_MANAGER): validate_file,

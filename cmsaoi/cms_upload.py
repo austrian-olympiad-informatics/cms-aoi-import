@@ -333,7 +333,7 @@ def construct_task(config, all_rules, put_file):
     # ================ SUBMISSION FORMAT ================
     # Submission format (what the uploaded files are to be called, .%l is replaced by file suffix)
     submission_format = [f"{name}.%l"]
-    if config[CONF_TASK_TYPE] == TASK_TYPE_OUTPUT_ONLY:
+    if config[CONF_TASK_TYPE][CONF_TYPE] == TASK_TYPE_OUTPUT_ONLY:
         # Output only has file for each testcase
         submission_format.clear()
         for i, subtask in enumerate(subtasks, start=1):
@@ -498,53 +498,50 @@ def construct_task(config, all_rules, put_file):
     _LOGGER.info("")
 
     # ================ TASK TYPE ================
-    if config[CONF_TASK_TYPE] == TASK_TYPE_OUTPUT_ONLY:
+    conf = config[CONF_TASK_TYPE]
+    if conf.get(CONF_TYPE) == TASK_TYPE_BATCH:
+        # Batch task type, user program is called and a checker (or whitespace diff) is perfomed on output
+        # to determine outcome
+        task_type_params = [
+            # compiled alone (`alone`) or with grader (`grader`)
+            compilation_param,
+            # I/O, empty for stdin/stdout. Otherwise filenames for input/output files
+            [conf[CONF_STDIN_FILENAME], conf[CONF_STDOUT_FILENAME]],
+            # Evaluated by white-diff (`diff`) or with checker (`comparator`)
+            evaluation_param,
+        ]
+        task_type = "Batch"
+    elif conf.get(CONF_TYPE) == TASK_TYPE_COMMUNICATION:
+        task_type_params = [
+            # Number of user processes spawned
+            conf[CONF_NUM_PROCESSES],
+            # compiled alone (`alone`) or with grader (`stub`)
+            "stub" if compilation_param == "grader" else "alone",
+            # User I/O on stdin/out (std_io) or via fifos (fifo_io)
+            conf[CONF_USER_IO],
+        ]
+        digest = put_file(
+            conf[CONF_MANAGER], f"Communication manager for task {name}"
+        )
+        managers.append(Manager(filename="manager", digest=digest))
+        task_type = "Communication"
+    elif conf[CONF_TYPE] == TASK_TYPE_OUTPUT_ONLY:
         task_type_params = [
             # Evaluated by white-diff (`diff`) or with checker (`comparator`)
             evaluation_param
         ]
         task_type = "OutputOnly"
-    elif isinstance(config[CONF_TASK_TYPE], dict):
-        conf = config[CONF_TASK_TYPE]
-        if conf.get(CONF_TYPE) == TASK_TYPE_BATCH:
-            # Batch task type, user program is called and a checker (or whitespace diff) is perfomed on output
-            # to determine outcome
-            task_type_params = [
-                # compiled alone (`alone`) or with grader (`grader`)
-                compilation_param,
-                # I/O, empty for stdin/stdout. Otherwise filenames for input/output files
-                [conf[CONF_STDIN_FILENAME], conf[CONF_STDOUT_FILENAME]],
-                # Evaluated by white-diff (`diff`) or with checker (`comparator`)
-                evaluation_param,
-            ]
-            task_type = "Batch"
-        elif conf.get(CONF_TYPE) == TASK_TYPE_COMMUNICATION:
-            task_type_params = [
-                # Number of user processes spawned
-                conf[CONF_NUM_PROCESSES],
-                # compiled alone (`alone`) or with grader (`stub`)
-                "stub" if compilation_param == "grader" else "alone",
-                # User I/O on stdin/out (std_io) or via fifos (fifo_io)
-                conf[CONF_USER_IO],
-            ]
-            digest = put_file(
-                conf[CONF_MANAGER], f"Communication manager for task {name}"
-            )
-            managers.append(Manager(filename="manager", digest=digest))
-            task_type = "Communication"
-        elif conf.get(CONF_TYPE) == TASK_TYPE_OJUZ:
-            task_type_params = [
-                # compiled alone (`alone`) or with grader (`grader`)
-                compilation_param,
-                # I/O, empty for stdin/stdout. Otherwise filenames for input/output files
-                ["", ""],
-                # Evaluated by white-diff (`diff`) or with checker (`comparator`)
-                evaluation_param,
-                config[CONF_TASK_TYPE][CONF_OJUZ_KEY],
-            ]
-            task_type = "Ojuz"
-        else:
-            raise NotImplementedError
+    elif conf.get(CONF_TYPE) == TASK_TYPE_OJUZ:
+        task_type_params = [
+            # compiled alone (`alone`) or with grader (`grader`)
+            compilation_param,
+            # I/O, empty for stdin/stdout. Otherwise filenames for input/output files
+            ["", ""],
+            # Evaluated by white-diff (`diff`) or with checker (`comparator`)
+            evaluation_param,
+            config[CONF_TASK_TYPE][CONF_OJUZ_KEY],
+        ]
+        task_type = "Ojuz"
     else:
         raise NotImplementedError
 

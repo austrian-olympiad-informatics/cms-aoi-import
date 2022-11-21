@@ -89,7 +89,7 @@ def main():
     setup_log()
 
     parser = argparse.ArgumentParser(description="Austrian CMS Task Upload System")
-    subparsers = parser.add_subparsers(help="Action", dest="action")
+    subparsers = parser.add_subparsers(help="Action", dest="action", required=True)
 
     build_parser = subparsers.add_parser(
         "build", help="Build testcases and other files"
@@ -118,6 +118,12 @@ def main():
         "--no-tests", help="Don't run any submission tests.", action="store_true"
     )
 
+    evaluate_parser = subparsers.add_parser(
+        "evaluate", help="Compile and evaluate the given source file"
+    )
+    evaluate_parser.add_argument("task_dir", help="The directory of task to upload.")
+    evaluate_parser.add_argument("source_file", help="The source file to test.")
+
     args = parser.parse_args()
 
     action = {
@@ -125,6 +131,7 @@ def main():
         "test": command_test,
         "clean": command_clean,
         "upload": command_upload,
+        "evaluate": command_evaluate,
     }[args.action]
 
     try:
@@ -235,6 +242,21 @@ def command_upload(args):
     from cmsaoi.cms_upload import upload_task
 
     return upload_task(core.config, all_rules, args.contest, args.no_tests)
+
+
+def command_evaluate(args):
+    if not Path(args.source_file).is_file():
+        raise ValueError(f"Could not find source file {args.source_file}")
+    config = _load_config(args.task_dir)
+    _build_config(config)
+    config = core.config
+
+    from cmsaoi.evaluate import compile_submission, evaluate_submission
+    from concurrent.futures import ThreadPoolExecutor
+    from multiprocessing import cpu_count
+    executable = compile_submission(config, args.source_file)
+    with ThreadPoolExecutor(max_workers=max(1,cpu_count()-1)) as thread_pool:
+        evaluate_submission(thread_pool, config, args.source_file, executable)
 
 
 def patch_pth():
