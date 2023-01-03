@@ -202,8 +202,8 @@ def _compile_sub(source_path: Path, config, compile_dir: Path) -> Path:
         for path in grader_files:
             copyfile(path, path.name)
             sources.append(path.name)
-        copyfile(source_path, f"{task_name}.py")
-        sources.append(f"{task_name}.py")
+        copyfile(source_path, f"{task_name.lower()}.py")
+        sources.append(f"{task_name.lower()}.py")
         execute(["/usr/bin/python3", "-m", "compileall", "-b", "."])
         files_to_package = []
         for idx, fname in enumerate(sources):
