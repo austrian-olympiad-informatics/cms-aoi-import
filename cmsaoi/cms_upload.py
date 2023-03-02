@@ -263,9 +263,9 @@ def commit_task(task, contest_id):
                 raise CMSAOIError(f"Could not find a contest with ID {contest_id}")
             if contest.id != task.contest_id:
                 _LOGGER.info("Adding task to contest %s", contest.id)
-                task.contest_id = contest.id
                 if task.num is None:
                     task.num = len(contest.tasks)
+                task.contest_id = contest.id
         # Commit changes
         session.commit()
 
