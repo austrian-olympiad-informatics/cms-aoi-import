@@ -2,7 +2,7 @@ import shlex
 import zipfile
 from pathlib import Path
 
-import voluptuous as vol
+import voluptuous as vol  # type: ignore
 
 from cmsaoi import rule
 from cmsaoi.const import (
@@ -41,8 +41,8 @@ from cmsaoi.const import (
     CONF_PUBLIC,
     CONF_SAMPLE_SOLUTION,
     CONF_SCORE_OPTIONS,
-    CONF_STATEMENTS,
     CONF_STATEMENT_HTML,
+    CONF_STATEMENTS,
     CONF_STDIN_FILENAME,
     CONF_STDOUT_FILENAME,
     CONF_SUBTASKS,

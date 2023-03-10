@@ -1,3 +1,4 @@
+# pylint: disable=import-error
 # NOTE: Only import this package locally (not in a module scope)
 # because it needs a local cms install
 import logging
@@ -6,16 +7,18 @@ from pathlib import Path
 from typing import Optional, Union
 from uuid import uuid4
 
-import cms.conf
-import cmscommon.constants as cmsconst
-import gevent
-from cms import ServiceCoord
-from cms.db import (
+import cms.conf  # type: ignore
+import cmscommon.constants as cmsconst  # type: ignore
+import gevent  # type: ignore
+from cms import ServiceCoord  # type: ignore
+from cms.db import (  # type: ignore
     Attachment,
     Contest,
     Dataset,
     File,
+    LanguageTemplate,
     Manager,
+    Meme,
     Participation,
     SessionGen,
     Statement,
@@ -23,16 +26,14 @@ from cms.db import (
     SubmissionResult,
     Task,
     Testcase,
+    TestManager,
     User,
     test_db_connection,
-    LanguageTemplate,
-    TestManager,
-    Meme,
 )
-from cms.db.filecacher import FileCacher
-from cms.grading.languagemanager import LANGUAGES
-from cms.io import RemoteServiceClient
-from cmscontrib.importing import update_task
+from cms.db.filecacher import FileCacher  # type: ignore
+from cms.grading.languagemanager import LANGUAGES  # type: ignore
+from cms.io import RemoteServiceClient  # type: ignore
+from cmscontrib.importing import update_task  # type: ignore
 
 from cmsaoi.const import (
     CONF_ATTACHMENTS,
@@ -49,7 +50,6 @@ from cmsaoi.const import (
     CONF_INPUT,
     CONF_LONG_NAME,
     CONF_MANAGER,
-    CONF_MAX_NUMBER,
     CONF_MAX_SCORE,
     CONF_MEMES,
     CONF_MEMORY_LIMIT,
@@ -62,8 +62,8 @@ from cmsaoi.const import (
     CONF_POINTS,
     CONF_PUBLIC,
     CONF_SCORE_OPTIONS,
-    CONF_STATEMENTS,
     CONF_STATEMENT_HTML,
+    CONF_STATEMENTS,
     CONF_STDIN_FILENAME,
     CONF_STDOUT_FILENAME,
     CONF_SUBTASKS,
@@ -96,7 +96,7 @@ from cmsaoi.const import (
 from cmsaoi.core import CMSAOIError
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.parent.handlers.pop()
+_LOGGER.parent.handlers.pop()  # type: ignore
 
 
 def upload_task(config, all_rules, contest, no_tests):
@@ -145,7 +145,7 @@ def run_test_submissions(config, put_file):
     name = config[CONF_NAME]
     with SessionGen() as session:
         # Re-fetch task (cannot use task object after session closed)
-        task: Task = session.query(Task).filter(Task.name == name).one()
+        task: Task = session.query(Task).filter(Task.name == name).one()  # type: ignore
 
         query = (
             session.query(Participation)
@@ -300,7 +300,9 @@ def construct_task(config, all_rules, put_file):
         _LOGGER.info("  - Primary statement: %s", args["primary_statements"][0])
 
     if CONF_STATEMENT_HTML in config:
-        digest = put_file(config[CONF_STATEMENT_HTML], f"HTML statement for task {name}")
+        digest = put_file(
+            config[CONF_STATEMENT_HTML], f"HTML statement for task {name}"
+        )
         args["statement_html_digest"] = digest
         _LOGGER.info(
             "  - HTML statement: '%s'",
@@ -371,14 +373,16 @@ def construct_task(config, all_rules, put_file):
         memes = args["memes"] = []
         for conf in config[CONF_MEMES]:
             fname = Path(conf[CONF_FILE]).name
-            digest = put_file(grader, f"Meme {fname} for task {name}")
-            memes.append(Meme(
-                filename=fname, 
-                digest=digest,
-                min_score=conf[CONF_MIN_SCORE],
-                max_score=conf[CONF_MAX_SCORE],
-                factor=conf[CONF_WEIGHT],
-            ))
+            digest = put_file(conf[CONF_FILE], f"Meme {fname} for task {name}")
+            memes.append(
+                Meme(
+                    filename=fname,
+                    digest=digest,
+                    min_score=conf[CONF_MIN_SCORE],
+                    max_score=conf[CONF_MAX_SCORE],
+                    factor=conf[CONF_WEIGHT],
+                )
+            )
 
     task = Task(
         name=name,
@@ -520,9 +524,7 @@ def construct_task(config, all_rules, put_file):
             # User I/O on stdin/out (std_io) or via fifos (fifo_io)
             conf[CONF_USER_IO],
         ]
-        digest = put_file(
-            conf[CONF_MANAGER], f"Communication manager for task {name}"
-        )
+        digest = put_file(conf[CONF_MANAGER], f"Communication manager for task {name}")
         managers.append(Manager(filename="manager", digest=digest))
         task_type = "Communication"
     elif conf[CONF_TYPE] == TASK_TYPE_OUTPUT_ONLY:

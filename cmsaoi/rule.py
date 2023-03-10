@@ -3,6 +3,7 @@ import hashlib
 import logging
 import shlex
 import string
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Union
 
@@ -13,8 +14,10 @@ from cmsaoi.util import stable_hash
 
 _LOGGER = logging.getLogger(__name__)
 
-base_directory = contextvars.ContextVar("base directory")
-path_in_config = contextvars.ContextVar("Path in config")
+base_directory: contextvars.ContextVar[Path] = contextvars.ContextVar("base directory")
+path_in_config: contextvars.ContextVar[List[Union[str, int]]] = contextvars.ContextVar(
+    "Path in config"
+)
 
 
 def default_output(
@@ -38,14 +41,16 @@ def gen_seed(arg: str) -> int:
     return int.from_bytes(h.digest()[:4], "big")
 
 
-class NinjaRule:
-    RULE_NAME = None
-
-    def write_rule(self, writer: Writer) -> None:
-        raise NotImplementedError
+class NinjaRule(ABC):
+    RULE_NAME: str
 
     @classmethod
-    def write_build(cls, writer: Writer) -> None:
+    @abstractmethod
+    def write_rule(cls, writer: Writer) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def write_build(self, writer: Writer) -> None:
         raise NotImplementedError
 
     @property

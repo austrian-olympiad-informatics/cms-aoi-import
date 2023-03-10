@@ -8,10 +8,10 @@ import sys
 from pathlib import Path
 from typing import Dict
 
-import voluptuous as vol
+import voluptuous as vol  # type: ignore
 import yaml
 import yaml.constructor
-from voluptuous.humanize import humanize_error
+from voluptuous.humanize import humanize_error  # type: ignore
 
 from cmsaoi import ninja_syntax, rule
 from cmsaoi.const import (
@@ -251,11 +251,13 @@ def command_evaluate(args):
     _build_config(config)
     config = core.config
 
-    from cmsaoi.evaluate import compile_submission, evaluate_submission
     from concurrent.futures import ThreadPoolExecutor
     from multiprocessing import cpu_count
+
+    from cmsaoi.evaluate import compile_submission, evaluate_submission
+
     executable = compile_submission(config, args.source_file)
-    with ThreadPoolExecutor(max_workers=max(1,cpu_count()-1)) as thread_pool:
+    with ThreadPoolExecutor(max_workers=max(1, cpu_count() - 1)) as thread_pool:
         evaluate_submission(thread_pool, config, args.source_file, executable)
 
 
