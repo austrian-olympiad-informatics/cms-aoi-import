@@ -550,6 +550,7 @@ def evaluate_testcase(
                 stdout=checker_stdout,
                 stderr=checker_stderr,
             )
+            checker_executor.execute()
             checker_executor.wait()
             if checker_executor.returncode != 0:
                 raise EvaluationError(
