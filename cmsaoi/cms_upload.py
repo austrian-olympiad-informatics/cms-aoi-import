@@ -1,3 +1,4 @@
+# pylint: disable=import-error
 # NOTE: Only import this package locally (not in a module scope)
 # because it needs a local cms install
 import logging
