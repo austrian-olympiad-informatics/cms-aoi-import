@@ -6,7 +6,7 @@ from cmsaoi.rule import registered_rules
 
 
 class AOITag:
-    def __init__(self, base_directory, tag, rule_type, value):
+    def __init__(self, base_directory: Path, tag, rule_type, value):
         self.tag = tag
         self.rule_type = rule_type
         self.value = value

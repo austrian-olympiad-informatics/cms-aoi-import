@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+cd "$(dirname "$0")"
+set -euxo pipefail
+
+black cmsaoi
+ruff cmsaoi
+flake8 cmsaoi
+isort cmsaoi
+mypy cmsaoi
+pylint cmsaoi

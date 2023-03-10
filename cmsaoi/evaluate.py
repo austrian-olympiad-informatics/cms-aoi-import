@@ -1,50 +1,49 @@
+import concurrent.futures
+import logging
+import math
+import os
+import resource
+import shlex
+import shutil
+import signal
+import stat
+import subprocess
+import tempfile
+import threading
+import time
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from typing import BinaryIO, Tuple, cast
+
+from tabulate import tabulate
+
 from .const import (
-    CONF_GRADER,
-    CONF_NAME,
-    CONF_TASK_TYPE,
-    TASK_TYPE_BATCH,
-    TASK_TYPE_OUTPUT_ONLY,
-    TASK_TYPE_COMMUNICATION,
-    CONF_TIME_LIMIT,
-    CONF_MEMORY_LIMIT,
-    CONF_TYPE,
     CONF_CHECKER,
-    CONF_STDIN_FILENAME,
-    CONF_STDOUT_FILENAME,
-    CONF_MANAGER,
-    CONF_NUM_PROCESSES,
-    CONF_USER_IO,
-    CONF_SUBTASKS,
-    CONF_TESTCASES,
+    CONF_DECIMAL_PLACES,
+    CONF_GRADER,
     CONF_INPUT,
+    CONF_MANAGER,
+    CONF_MEMORY_LIMIT,
+    CONF_NAME,
+    CONF_NUM_PROCESSES,
     CONF_OUTPUT,
     CONF_POINTS,
     CONF_SCORE_OPTIONS,
-    CONF_DECIMAL_PLACES,
-    CONF_MODE,
+    CONF_STDIN_FILENAME,
+    CONF_STDOUT_FILENAME,
+    CONF_SUBTASKS,
+    CONF_TASK_TYPE,
+    CONF_TESTCASES,
+    CONF_TIME_LIMIT,
+    CONF_TYPE,
+    CONF_USER_IO,
     SCORE_TYPE_GROUP_MIN,
     SCORE_TYPE_GROUP_MUL,
-    SCORE_TYPE_GROUP_THRESHOLD,
     SCORE_TYPE_SUM,
+    TASK_TYPE_BATCH,
+    TASK_TYPE_COMMUNICATION,
 )
-import concurrent.futures
-import tempfile
-import shutil
-import subprocess
-import shlex
-import os
-import stat
-import time
-import resource
-import threading
-from dataclasses import dataclass
-import logging
-import signal
-import io
-import math
-from tabulate import tabulate
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,7 +62,7 @@ class Language(Enum):
     SWIFT = "SWIFT"
 
 
-def match_language(fname: str) -> Language:
+def match_language(fname: str | Path) -> Language:
     suffix = Path(fname).suffix.lower()
     lang_mapping = {
         ".cpp": Language.CPP20,
@@ -317,10 +316,10 @@ class Executor:
         self._stdout = stdout
         self._stderr = stderr
         self._start_time = None
-        self._end_time = None
-        self._proc = None
-        self._cpu_time = None
-        self._memory_used = None
+        self._end_time: float | None = None
+        self._proc: subprocess.Popen | None = None
+        self._cpu_time: float | None = None
+        self._memory_used: int | None = None
         self.returncode: int | None = None
         self.wall_clock_limit_exceeded: bool = False
 
@@ -365,7 +364,7 @@ class Executor:
                 )
 
         self._start_time = time.monotonic()
-        self._proc = subprocess.Popen(
+        self._proc = subprocess.Popen(  # pylint: disable=consider-using-with,subprocess-popen-preexec-fn
             self._cmd,
             stdin=stdin_fd,
             stdout=stdout_fd,
@@ -382,7 +381,9 @@ class Executor:
         if self._proc.stdin:
             self._proc.stdin.close()
 
-    def wait(self) -> int:
+    def wait(self) -> None:
+        if self._proc is None:
+            raise ValueError("Executor not started")
         finished_event = threading.Event()
 
         def wall_clock_killer():
@@ -398,7 +399,7 @@ class Executor:
         if self._wall_clock_time_limit_s:
             threading.Thread(target=wall_clock_killer).start()
 
-        pid, waits, rus = os.wait4(self._proc.pid, 0)
+        _, waits, rus = os.wait4(self._proc.pid, 0)
         self._end_time = time.monotonic()
         self._proc.returncode = os.waitstatus_to_exitcode(waits)
         finished_event.set()
@@ -408,6 +409,13 @@ class Executor:
         self.returncode = self._proc.returncode
 
     def stats(self) -> ExecuteStats:
+        if (
+            self._cpu_time is None
+            or self._end_time is None
+            or self._start_time is None
+            or self._memory_used is None
+        ):
+            raise ValueError("Executor not finished")
         return ExecuteStats(
             cpu_time=self._cpu_time,
             wall_clock_time=self._end_time - self._start_time,
@@ -437,7 +445,7 @@ class EvaluateResult:
     directories: list[Path] | None = None
 
 
-def _white_diff(fd1: io.RawIOBase, fd2: io.RawIOBase) -> bool:
+def _white_diff(fd1: BinaryIO, fd2: BinaryIO) -> bool:
     while True:
         b1 = fd1.readline()
         b2 = fd2.readline()
@@ -465,13 +473,14 @@ def evaluate_testcase(
     conf = config[CONF_TASK_TYPE]
     task_type = conf[CONF_TYPE]
     ret = EvaluateResult(directories=[], score=0.0)
+    assert ret.directories is not None
     if task_type == TASK_TYPE_BATCH:
         exec_dir = Path(tempfile.mkdtemp(prefix="aoi-eval-"))
         ret.directories.append(exec_dir)
         shutil.copyfile(executable, exec_dir / executable.name)
         shutil.copymode(executable, exec_dir / executable.name)
+        stdin: Path | int = subprocess.DEVNULL
         if conf[CONF_STDIN_FILENAME]:
-            stdin = subprocess.DEVNULL
             shutil.copyfile(input_file, exec_dir / conf[CONF_STDIN_FILENAME])
         else:
             stdin = exec_dir / "stdin.txt"
@@ -515,13 +524,16 @@ def evaluate_testcase(
         msg = EvaluateMessage.SUCCESS
         if executor.wall_clock_limit_exceeded:
             msg = EvaluateMessage.WALL_CLOCK_LIMIT_EXCEEDED
-            ret.text = f"Wall clock limit exceeded"
-        elif executor.returncode < 0:
+            ret.text = "Wall clock limit exceeded"
+        elif cast(int, executor.returncode) < 0:
             msg = EvaluateMessage.SIGNAL
-            ret.signal = -executor.returncode
+            assert executor.returncode is not None
+            ret.signal = (  # pylint: disable-next=invalid-unary-operand-type
+                -executor.returncode
+            )
             ret.signal_name = signal.strsignal(ret.signal)
             ret.text = f"Signal: {ret.signal_name}"
-        elif executor.returncode > 0:
+        elif cast(int, executor.returncode) > 0:
             msg = EvaluateMessage.RETURNCODE
             ret.returncode = executor.returncode
             ret.text = f"Bad Exit Code: {ret.returncode}"
@@ -566,7 +578,7 @@ def evaluate_testcase(
             try:
                 score = float(score_txt)
             except ValueError:
-                raise EvaluationError(f"Checker score is not a float: {score}")
+                raise EvaluationError(f"Checker score is not a float: {score_txt}")
             text = checker_stderr.read_text().splitlines()[0]
             if text.startswith("translate:"):
                 text = {
@@ -647,6 +659,7 @@ def evaluate_testcase(
             udir = user_dirs[i]
             shutil.copyfile(executable, udir / executable.name)
             shutil.copymode(executable, udir / executable.name)
+            user_stdin: Path | int
             if conf[CONF_USER_IO] == "std_io":
                 user_stdin = fifo_m2us[i]
                 user_stdout = fifo_u2ms[i]
@@ -695,11 +708,12 @@ def evaluate_testcase(
             msg = EvaluateMessage.SUCCESS
             if uexec.wall_clock_limit_exceeded:
                 msg = EvaluateMessage.WALL_CLOCK_LIMIT_EXCEEDED
-            elif uexec.returncode < 0:
+            elif cast(int, uexec.returncode) < 0:
                 msg = EvaluateMessage.SIGNAL
+                assert uexec.returncode is not None
                 ret.signal = -uexec.returncode
                 ret.signal_name = signal.strsignal(-uexec.returncode)
-            elif uexec.returncode > 0:
+            elif cast(int, uexec.returncode) > 0:
                 msg = EvaluateMessage.RETURNCODE
                 ret.returncode = uexec.returncode
             ret.type = msg
@@ -725,6 +739,7 @@ def evaluate_testcase(
     else:
         raise ValueError(f"Unsupported task type {task_type}")
 
+
 def evaluate_submission(
     thread_pool: concurrent.futures.ThreadPoolExecutor,
     config,
@@ -737,22 +752,28 @@ def evaluate_submission(
         for j, tc in enumerate(sub[CONF_TESTCASES]):
             corr_output = Path(tc[CONF_OUTPUT]) if CONF_OUTPUT in tc else None
             fut = thread_pool.submit(
-                evaluate_testcase, config, source_file, executable,
-                tc[CONF_INPUT], correct_output_file=corr_output,
+                evaluate_testcase,
+                config,
+                source_file,
+                executable,
+                tc[CONF_INPUT],
+                correct_output_file=corr_output,
                 enforce_limits=enforce_limits,
             )
-            futs[(i,j)] = fut
+            futs[(i, j)] = fut
     _LOGGER.info("Evaluating submission against %s testcases...", len(futs))
     concurrent.futures.wait(futs.values())
-    results: dict[(int,int), EvaluateResult] = {}
+    results: dict[Tuple[int, int], EvaluateResult] = {}
     for (i, j), fut in futs.items():
-        results[(i,j)] = fut.result()
-    
+        results[(i, j)] = fut.result()
+
     dec_places: int = config[CONF_SCORE_OPTIONS][CONF_DECIMAL_PLACES]
     scoring_type: str = config[CONF_SCORE_OPTIONS][CONF_TYPE]
 
     for i, sub in enumerate(config[CONF_SUBTASKS]):
-        tc_scores = [results[(i,j)].score for j in range(len(sub[CONF_TESTCASES]))]
+        tc_scores: list[float] = [
+            cast(float, results[(i, j)].score) for j in range(len(sub[CONF_TESTCASES]))
+        ]
         if scoring_type == SCORE_TYPE_GROUP_MIN:
             sub_score = min(tc_scores) * sub[CONF_POINTS]
             max_score = sub[CONF_POINTS]
@@ -764,25 +785,40 @@ def evaluate_submission(
             max_score = sub[CONF_POINTS] * len(sub[CONF_TESTCASES])
         else:
             raise ValueError(f"Unsupported scoring type {scoring_type}")
-        
+
         sub_score = round(sub_score, dec_places)
-        color = "\033[0;32m" if sub_score == max_score else ("\033[0;31m" if sub_score == 0 else "\033[0;33m")
+        color = (
+            "\033[0;32m"
+            if sub_score == max_score
+            else ("\033[0;31m" if sub_score == 0 else "\033[0;33m")
+        )
         print()
-        print(f"{color}Subtask {i+1}: {sub_score:.{dec_places}f}P / {max_score:.{dec_places}f}P\033[0m")
+        print(
+            f"{color}Subtask {i+1}: {sub_score:.{dec_places}f}P / {max_score:.{dec_places}f}P\033[0m"
+        )
 
         header = ["#", "Result", "Details", "Time", "Memory", "Directory"]
         table = []
         for j in range(len(sub[CONF_TESTCASES])):
-            r = results[(i,j)]
+            r = results[(i, j)]
             result_s = "\033[0;32mCorrect\033[0m"
+            assert r.score is not None
             if r.type != EvaluateMessage.SUCCESS or r.score <= 0.0:
                 result_s = "\033[0;31mNot correct\033[0m"
             elif r.score < 1.0:
                 result_s = "\033[0;33mPartially correct\033[0m"
-            table.append([
-                f"{i+1}_{j+1}", result_s, r.text, f"{r.cpu_time:.3f}s", f"{r.memory_usage/1024/1024:.2f}MiB",
-                " ".join(map(str, r.directories)),
-            ])
+            assert r.directories is not None
+            assert r.memory_usage is not None
+            assert r.cpu_time is not None
+            table.append(
+                [
+                    f"{i+1}_{j+1}",
+                    result_s,
+                    r.text,
+                    f"{r.cpu_time:.3f}s",
+                    f"{r.memory_usage/1024/1024:.2f}MiB",
+                    " ".join(map(str, r.directories)),
+                ]
+            )
         t = tabulate(table, headers=header, tablefmt="simple_outline")
         print(t)
-

@@ -16,7 +16,6 @@ disable = [
   "redefined-outer-name",
   "too-few-public-methods",
   "unspecified-encoding",
-  "no-self-use",
   "too-many-branches",
   "too-many-statements",
   "too-many-locals",
@@ -28,4 +27,10 @@ disable = [
   "f-string-without-interpolation",
   "fixme",
   "too-many-arguments",
+  "raise-missing-from",
+  "no-else-return",
+  "too-many-instance-attributes",
 ]
+
+[tool.ruff]
+line-length = 9001
