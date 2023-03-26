@@ -98,6 +98,15 @@ from cmsaoi.core import CMSAOIError
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.parent.handlers.pop()  # type: ignore
 
+def get_task_info(taskname):
+    try:
+        test_db_connection()
+    except cms.conf.ConfigError as err:
+        raise CMSAOIError(f"Database is offline: {err}") from err
+
+    with SessionGen() as session:
+        task = session.query(Task).filter(Task.name == taskname).first()
+        print(f"ID of task {taskname} is {task.id}")
 
 def upload_task(config, all_rules, contest, no_tests):
     try:

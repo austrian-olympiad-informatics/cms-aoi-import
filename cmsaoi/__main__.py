@@ -124,6 +124,11 @@ def main():
     evaluate_parser.add_argument("task_dir", help="The directory of task to upload.")
     evaluate_parser.add_argument("source_file", help="The source file to test.")
 
+    info_parser = subparsers.add_parser(
+        "info", help="Finally a way to get this *** id."
+    )
+    info_parser.add_argument("task", help="The name of the task to find")
+
     args = parser.parse_args()
 
     action = {
@@ -132,6 +137,7 @@ def main():
         "clean": command_clean,
         "upload": command_upload,
         "evaluate": command_evaluate,
+        "info": command_info,
     }[args.action]
 
     try:
@@ -210,6 +216,10 @@ def _build_config(config):
     _LOGGER.info(f"Build result written to {core.result_dir}")
     return all_rules
 
+
+def command_info(args):
+    from cmsaoi.cms_upload import get_task_info
+    return get_task_info(args.task)
 
 def command_build(args):
     config = _load_config(args.task_dir)
