@@ -219,7 +219,9 @@ def _build_config(config):
 
 def command_info(args):
     from cmsaoi.cms_upload import get_task_info
+
     return get_task_info(args.task)
+
 
 def command_build(args):
     config = _load_config(args.task_dir)
