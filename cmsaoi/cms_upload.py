@@ -182,7 +182,12 @@ def run_test_submissions(config, put_file):
             digest = put_file(path, f"Test submission file {path} for {name}")
             comment = f"Test {Path(path).name} for {points}P"
             lang = filename_to_langname(task.contest, path)
-            assert lang is not None
+            if lang is None:
+                _LOGGER.warning(
+                    "Lanuage for test submission %s is not supported. Skipping.",
+                    path,
+                )
+                continue
             submission = Submission(
                 uuid=str(uuid4()),
                 timestamp=datetime.utcnow(),
