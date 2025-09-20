@@ -345,23 +345,32 @@ class Executor:
         def preexec_fn():
             os.chdir(str(self._cwd))
             if self._time_limit_s is not None:
-                resource.setrlimit(
-                    resource.RLIMIT_CPU,
-                    (int(self._time_limit_s), int(self._time_limit_s)),
-                )
-            if self._memory_limit_bytes is not None:
-                resource.setrlimit(
-                    resource.RLIMIT_AS,
-                    (self._memory_limit_bytes, self._memory_limit_bytes),
-                )
-                resource.setrlimit(
-                    resource.RLIMIT_STACK,
-                    (self._memory_limit_bytes, self._memory_limit_bytes),
-                )
-                resource.setrlimit(
-                    resource.RLIMIT_DATA,
-                    (self._memory_limit_bytes, self._memory_limit_bytes),
-                )
+                if self._time_limit_s is not None:
+                    try:
+                        resource.setrlimit(
+                            resource.RLIMIT_CPU,
+                            (int(self._time_limit_s), int(self._time_limit_s)),
+                        )
+                    except ValueError:
+                        _LOGGER.warning("CPU time limit not supported on this platform")
+
+                if self._memory_limit_bytes is not None:
+                    try:
+                        resource.setrlimit(
+                            resource.RLIMIT_AS,
+                            (self._memory_limit_bytes, self._memory_limit_bytes),
+                        )
+                        resource.setrlimit(
+                            resource.RLIMIT_STACK,
+                            (self._memory_limit_bytes, self._memory_limit_bytes),
+                        )
+                        resource.setrlimit(
+                            resource.RLIMIT_DATA,
+                            (self._memory_limit_bytes, self._memory_limit_bytes),
+                        )
+                    except ValueError:
+                        _LOGGER.warning("Memory limit setting not supported on this platform")
+
 
         self._start_time = time.monotonic()
         self._proc = subprocess.Popen(  # pylint: disable=consider-using-with,subprocess-popen-preexec-fn
