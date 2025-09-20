@@ -259,6 +259,7 @@ def command_upload(args):
 def command_evaluate(args):
     if not Path(args.source_file).is_file():
         raise ValueError(f"Could not find source file {args.source_file}")
+    source_file = Path(args.source_file).absolute()
     config = _load_config(args.task_dir)
     _build_config(config)
     config = core.config
@@ -268,9 +269,9 @@ def command_evaluate(args):
 
     from cmsaoi.evaluate import compile_submission, evaluate_submission
 
-    executable = compile_submission(config, args.source_file)
+    executable = compile_submission(config, source_file)
     with ThreadPoolExecutor(max_workers=max(1, cpu_count() - 1)) as thread_pool:
-        evaluate_submission(thread_pool, config, args.source_file, executable)
+        evaluate_submission(thread_pool, config, source_file, executable)
 
 
 def patch_pth():
