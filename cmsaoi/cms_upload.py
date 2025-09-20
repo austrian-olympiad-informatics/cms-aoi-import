@@ -188,7 +188,12 @@ def run_test_submissions(config, put_file):
                     path,
                 )
                 continue
+            kwargs = {}
+            if hasattr(Submission, 'generate_opaque_id'):
+                kwargs['opaque_id'] = Submission.generate_opaque_id(session, participation.id)
+
             submission = Submission(
+                **kwargs,
                 uuid=str(uuid4()),
                 timestamp=datetime.utcnow(),
                 language=lang,
