@@ -20,6 +20,22 @@
 
           src = ./.;
 
+          postPatch = ''
+            substituteInPlace cmsaoi/evaluate.py \
+              --replace-fail "/usr/bin/kotlinc" "${pkgs.kotlin}/bin/kotlinc" \
+              --replace-fail "/usr/bin/python3" "${python}/bin/python3" \
+              --replace-fail "/usr/bin/javac" "${pkgs.jdk}/bin/javac" \
+              --replace-fail "/usr/bin/rustc" "${pkgs.rustc}/bin/rustc" \
+              --replace-fail "/usr/bin/ghc" "${pkgs.ghc}/bin/ghc" \
+              --replace-fail "/usr/bin/mcs" "${pkgs.mono}/bin/mcs" \
+              --replace-fail "/usr/bin/mono" "${pkgs.mono}/bin/mono" \
+              --replace-fail "/usr/bin/jar" "${pkgs.jdk}/bin/jar" \
+              --replace-fail "/usr/bin/java" "${pkgs.jdk}/bin/java" \
+              --replace-fail "/usr/bin/g++" "${pkgs.gcc}/bin/g++" \
+              --replace-fail "/usr/bin/go" "${pkgs.go}/bin/go" \
+              --replace-fail "/usr/bin/zip" "${pkgs.zip}/bin/zip"
+          '';
+
           propagatedBuildInputs = with python.pkgs; [
             voluptuous
             pyyaml
