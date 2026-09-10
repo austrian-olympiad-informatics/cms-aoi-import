@@ -123,6 +123,11 @@ def main():
     )
     evaluate_parser.add_argument("task_dir", help="The directory of task to upload.")
     evaluate_parser.add_argument("source_file", help="The source file to test.")
+    evaluate_parser.add_argument(
+        "--no-enforce-limits",
+        help="Don't enforce time and memory limits during evaluation.",
+        action="store_true",
+    )
 
     info_parser = subparsers.add_parser(
         "info", help="Finally a way to get this *** id."
@@ -271,7 +276,10 @@ def command_evaluate(args):
 
     executable = compile_submission(config, source_file)
     with ThreadPoolExecutor(max_workers=max(1, cpu_count() - 1)) as thread_pool:
-        evaluate_submission(thread_pool, config, source_file, executable)
+        evaluate_submission(
+            thread_pool, config, source_file, executable,
+            enforce_limits=not args.no_enforce_limits,
+        )
 
 
 def patch_pth():
